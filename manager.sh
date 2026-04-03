@@ -1,29 +1,40 @@
 #!/bin/bash
 
-VMS=("192.168.122.99" "192.168.122.237" "192.168.122.56")
-USER="fouad"
-MDP="azerty"
 DB_PATH="/home/fouad/projet_ams/monitoring.db"
+HOSTS=$(sqlite3 "$DB_PATH" "SELECT ip, utilisateur FROM hosts;")
 
-for ip in "${VMS[@]}"; do
-    echo "Collecte sur $ip..."
+if [ -z "$HOSTS" ]; then
+    exit 1
+fi
+
+for host in $HOSTS; do
+    ip=$(echo "$host" | cut -d'|' -f1)
+    user=$(echo "$host" | cut -d'|' -f2)
     
-    DATA=$(sshpass -p "$MDP" ssh -o StrictHostKeyChecking=no $USER@$ip \
-    "bash ~/projet_ams/sonde_cpu.sh && bash ~/projet_ams/sonde_ram.sh && bash ~/projet_ams/sonde_disque.sh")
+    DATA=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$user@$ip" "python3 ~/projet_ams/sonde_cpu.py && python3 ~/projet_ams/sonde_ram.py && bash ~/projet_ams/sonde_disque.sh" 2>/dev/null)
     
     if [ $? -eq 0 ]; then
-        # Extraction des valeurs 
-        CPU=$(echo "$DATA" | grep "CPU" | cut -d':' -f3 | tr -d '%')
-        RAM=$(echo "$DATA" | grep "RAM" | cut -d':' -f3 | tr -d '%')
-        DISK=$(echo "$DATA" | grep "DISK" | cut -d':' -f3 | tr -d '%')
-        TS=$(date +%s)
-
-        sqlite3 "$DB_PATH" "INSERT INTO mesures (timestamp, ip, cpu, ram, disk) VALUES ($TS, '$ip', $CPU, $RAM, $DISK);"
+        TS_SUCCESS=$(date +%s)
+        sqlite3 "$DB_PATH" "INSERT INTO mesures (timestamp, ip, sonde, valeur) VALUES ($TS_SUCCESS, '$ip', 'ETAT', 1);"
+        
+        echo "$DATA" | while IFS='|' read -r ts_part val_part; do
+            if [[ "$ts_part" == TIMESTAMP:* ]]; then
+                TS=$(echo "$ts_part" | cut -d':' -f2)
+                SONDE=$(echo "$val_part" | cut -d':' -f1)
+                VALEUR=$(echo "$val_part" | cut -d':' -f2 | tr -d '%')
+                
+                sqlite3 "$DB_PATH" "INSERT INTO mesures (timestamp, ip, sonde, valeur) VALUES ($TS, '$ip', '$SONDE', $VALEUR);"
+            fi
+        done
     else
-        # Si vm éteinte
-        sqlite3 "$DB_PATH" "INSERT INTO mesures (timestamp, ip, cpu, ram, disk) VALUES ($(date +%s), '$ip', -1, -1, -1);"
+        TS=$(date +%s)
+        sqlite3 "$DB_PATH" "INSERT INTO mesures (timestamp, ip, sonde, valeur) VALUES ($TS, '$ip', 'ETAT', -1);"
     fi
 done
 
-# Nettoyage des données de plus de 24h
-sqlite3 "$DB_PATH" "DELETE FROM mesures WHERE timestamp < $(($(date +%s) - 86400));"
+HISTORIQUE_MAX=$(sqlite3 "$DB_PATH" "SELECT valeur FROM config WHERE cle='Historique_max';")
+if [ -z "$HISTORIQUE_MAX" ]; then HISTORIQUE_MAX=86400; fi
+
+sqlite3 "$DB_PATH" "DELETE FROM mesures WHERE timestamp < $(($(date +%s) - $HISTORIQUE_MAX));"
+bash /home/fouad/projet_ams/alerte.sh
+python3 /home/fouad/projet_ams/generer_graphiques.py

@@ -9,9 +9,9 @@ DB_PATH = "/home/fouad/projet_ams/monitoring.db"
 
 def recuperer_alerte_cert():
     url = "https://www.cert.ssi.gouv.fr/alerte/"
-    
     try:
         reponse = requests.get(url, timeout=10)
+        reponse.encoding = reponse.apparent_encoding
         soup = BeautifulSoup(reponse.text, 'html.parser')
         article = soup.find('article')
         if article:

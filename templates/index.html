@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord - AMS</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .host-section { background: white; padding: 20px; margin-bottom: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .graphs-container { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 15px; }
+        .graph-card { background: #fafafa; border: 1px solid #ddd; padding: 10px; border-radius: 5px; flex: 1; min-width: 300px; }
+        .alerte-box { background: #ffeaa7; border-left: 5px solid #d63031; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+        .alerte-box h3 { margin-top: 0; color: #d63031; }
+        embed { width: 100%; height: auto; }
+        ul { list-style-type: none; padding-left: 0; }
+        ul li { padding: 5px 0; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+    <h1>Tableau de bord - Parc Informatique</h1>
+
+    {% if alertes_systeme %}
+    <div class="alerte-box" style="border-color: darkred; background-color: #ffcccc;">
+        <h3>ALERTES MATÉRIELLES EN COURS (Dépassement de seuil)</h3>
+        <ul>
+            {% for a in alertes_systeme %}
+            <li><strong>{{ a.heure }} - {{ a.ip }}</strong> : La sonde {{ a.sonde }} affiche {{ a.valeur }}% (Seuil : {{ a.seuil }}%) !</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if alerte %}
+    <div class="alerte-box">
+        <h3>Dernière Alerte CERT (Cybersécurité extérieure)</h3>
+        <p><strong>{{ alerte.titre }}</strong> (le {{ alerte.date }})</p>
+    </div>
+    {% endif %}
+
+    {% for ip, user in hosts %}
+    <div class="host-section">
+        <h2>Serveur : {{ ip }} (Utilisateur : {{ user }})</h2>
+        
+        <h4>Dernières mesures en direct :</h4>
+        <ul>
+            {% for sonde, data in dernieres_valeurs[ip].items() %}
+                {% if sonde == 'ETAT' %}
+                    {% if data.valeur == -1 or data.valeur == -1.0 %}
+                        <li><strong>ÉTAT DU SERVEUR</strong> : <span style="color: red;">Déconnecté / Injoignable</span> (dernière tentative à {{ data.heure }})</li>
+                    {% else %}
+                        <li><strong>ÉTAT DU SERVEUR</strong> : <span style="color: green;">En Ligne</span> (dernière mesure à {{ data.heure }})</li>
+                    {% endif %}
+                {% else %}
+                    <li><strong>{{ sonde }}</strong> : {{ data.valeur }} (récupéré à {{ data.heure }})</li>
+                {% endif %}
+            {% else %}
+            <li>Aucune donnée texte disponible. Assurez-vous que ./manager.sh a été exécuté.</li>
+            {% endfor %}
+        </ul>
+
+        <h4>Historique (Graphiques) :</h4>
+        <div class="graphs-container">
+            {% if graphiques[ip] %}
+                <div class="graph-card">
+                    <embed type="image/svg+xml" src="/graphiques/{{ ip }}_all.svg" />
+                </div>
+            {% else %}
+                <p>Aucun graphique disponible. Assurez-vous d'avoir exécuté ./generer_graphiques.py</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+</body>
+</html>
