@@ -33,6 +33,12 @@ msg['Subject'] = sujet
 msg['From'] = EXPEDITEUR
 msg['To'] = DESTINATAIRE
 
+print("\n[+] DÉCLENCHEMENT DE L'ALERTE MAIL [+]")
+print(f"➜ Destinataire : {DESTINATAIRE}")
+print(f"➜ Sujet        : {sujet}")
+print(f"➜ Contenu      : {corps.strip()}")
+print("[+] ENVOI AU SERVEUR SMTP (localhost:25) [+]\n")
+
 try:
     server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
     server.send_message(msg)

@@ -11,23 +11,20 @@ def get_db_info():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Récupérer les hôtes
     cursor.execute("SELECT ip, utilisateur FROM hosts")
     hosts = cursor.fetchall()
     
-    # Récupérer la dernière alerte CERT
-    cursor.execute("SELECT timestamp, titre FROM alertes_cert ORDER BY timestamp DESC LIMIT 1")
-    row_alerte = cursor.fetchone()
+    cursor.execute("SELECT timestamp, titre FROM alertes_cert ORDER BY timestamp DESC")
+    rows_alertes = cursor.fetchall()
     
-    derniere_alerte = None
-    if row_alerte:
-        dt = datetime.datetime.fromtimestamp(row_alerte[0]).strftime('%d/%m/%Y %H:%M')
-        derniere_alerte = {
+    alertes_cert = []
+    for row in rows_alertes:
+        dt = datetime.datetime.fromtimestamp(row[0]).strftime('%d/%m/%Y %H:%M')
+        alertes_cert.append({
             "date": dt,
-            "titre": row_alerte[1]
-        }
+            "titre": row[1]
+        })
 
-    # Liste des graphiques et dernières valeurs
     graphiques_par_ip = {}
     dernieres_valeurs = {}
     sondes = ["CPU", "RAM", "DISK", "ETAT"]
@@ -39,14 +36,12 @@ def get_db_info():
             
         dernieres_valeurs[ip] = {}
         for s in sondes:
-            # Récupération de la toute dernière valeur enregistrée pour cette sonde
             cursor.execute("SELECT valeur, timestamp FROM mesures WHERE ip=? AND sonde=? ORDER BY timestamp DESC LIMIT 1", (ip, s))
             row_val = cursor.fetchone()
             if row_val:
                 dt_val = datetime.datetime.fromtimestamp(row_val[1]).strftime('%H:%M:%S')
                 dernieres_valeurs[ip][s] = {"valeur": row_val[0], "heure": dt_val}
 
-    # Récupération des alertes système (Dépassement de seuil dans la dernière heure)
     TS_LIMITE = int(datetime.datetime.now().timestamp()) - 3600
     cursor.execute("""
         SELECT m.ip, m.sonde, m.valeur, c.seuil_max, m.timestamp 
@@ -66,12 +61,12 @@ def get_db_info():
         })
 
     conn.close()
-    return hosts, derniere_alerte, graphiques_par_ip, dernieres_valeurs, alertes_systeme
+    return hosts, alertes_cert, graphiques_par_ip, dernieres_valeurs, alertes_systeme
 
 @app.route('/')
 def index():
-    hosts, alerte, graphiques, val_actuelles, alertes_sys = get_db_info()
-    return render_template('index.html', hosts=hosts, alerte=alerte, graphiques=graphiques, dernieres_valeurs=val_actuelles, alertes_systeme=alertes_sys)
+    hosts, alertes_cert, graphiques, val_actuelles, alertes_sys = get_db_info()
+    return render_template('index.html', hosts=hosts, alertes_cert=alertes_cert, graphiques=graphiques, dernieres_valeurs=val_actuelles, alertes_systeme=alertes_sys)
 
 @app.route('/graphiques/<path:filename>')
 def serve_graph(filename):

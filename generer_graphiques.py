@@ -17,7 +17,7 @@ def generer_graphique_ip(ip):
     cursor = conn.cursor()
 
     line_chart = pygal.DateTimeLine(
-        title=f"Evolution des Ressources - {ip}",
+        title=f"Ressources - {ip}",
         x_label_rotation=35, truncate_label=-1,
         x_value_formatter=lambda dt: dt.strftime('%H:%M:%S')
     )
